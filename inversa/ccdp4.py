@@ -75,16 +75,13 @@ def calc_rotation(objetivo, last, length, it):
     return new_alpha
 
 def calc_distance(objetivo, last, length, it) -> float:
-    new_values_objective = [objetivo[0] - last[length - it - 1][0], 
-                            objetivo[1] - last[length - it - 1][1]]
-    distance_r = [new_values_objective[0] - last[length][0] - last[length - it - 1][0], 
-                    new_values_objective[1] - last[length][1] - last[length - it - 1][1] ]
+    distance_r = [objetivo[0] - last[-1][0], 
+                  objetivo[1] - last[-1][1]]
     all_angle = 0
-    for i in range(length):
+    for i in range(length - it):
         all_angle += th[i]
     array = [np.cos(all_angle), np.sin(all_angle)]
     result = np.dot(array, distance_r)
-    print(f"Distance to move prismatic joint {length - it}: {result}")
     return result
 
 # ******************************************************************************
@@ -93,9 +90,10 @@ def calc_distance(objetivo, last, length, it) -> float:
 # valores articulares arbitrarios para la cinemática directa inicial
 th=[0.,0.,0.]
 a =[5.,5.,5.]
-limits = [[-np.pi / 2, np.pi / 2],
+grade = np.pi / 4
+limits = [[-grade, grade],
           [1, 4],
-          [-np.pi / 8, np.pi / 8]]
+          [-grade, grade]]
 spot_type = [False, True, False] # False = rotational, True = prismatic
 L = sum(a) # variable para representación gráfica
 EPSILON = .01
@@ -128,10 +126,17 @@ while (dist > EPSILON and abs(prev-dist) > EPSILON/100.):
             a[len(th) - 1 - i] = limits[len(th) - 1 - i][0]
         if (a[len(th) - 1 - i] > limits[len(th) - 1 - i][1]):
             a[len(th) - 1 - i] = limits[len(th) - 1 - i][1]
+        print("\nPrismatic joint adjustment:")
+        print(f"a[{len(th) - 1 - i}] = {a[len(th) - 1 - i]}")
+        print(f"th[{len(th) - 1 - i}] = {th[len(th) - 1 - i]}")
     else:
         alpha = calc_rotation(objetivo, O[-1], len(th), i)
         th[len(th) - 1 - i] += alpha
         th[len(th) - 1 - i] = normalize_angle(th[len(th) - 1 - i])
+        if (th[len(th) - 1 - i] < limits[len(th) - 1 - i][0]):
+            th[len(th) - 1 - i] = limits[len(th) - 1 - i][0]
+        if (th[len(th) - 1 - i] > limits[len(th) - 1 - i][1]):
+            th[len(th) - 1 - i] = limits[len(th) - 1 - i][1]
     O.append(cin_dir(th,a))
 
   dist = np.linalg.norm(np.subtract(objetivo,O[-1][-1]))
