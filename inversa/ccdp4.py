@@ -88,13 +88,15 @@ def calc_distance(objetivo, last, length, it) -> float:
 # Cálculo de la cinemática inversa de forma iterativa por el método CCD
 
 # valores articulares arbitrarios para la cinemática directa inicial
-th=[0.,0.,0.]
-a =[5.,5.,5.]
-grade = np.pi / 4
-limits = [[-grade, grade],
+th=[0., 0., 0., 0.]
+a =[5., 5., 5., 5.]
+grade45 = np.pi / 4
+grade30 = np.pi / 6
+limits = [[-grade45, grade45],
           [1, 4],
-          [-grade, grade]]
-spot_type = [False, True, False] # False = rotational, True = prismatic
+          [0, 2*grade30],
+          [2, 3]]
+spot_type = [False, True, False, True] # False = rotational, True = prismatic
 L = sum(a) # variable para representación gráfica
 EPSILON = .01
 
