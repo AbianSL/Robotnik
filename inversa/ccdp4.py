@@ -69,8 +69,8 @@ def calc_rotation(objetivo, last, length, it):
                             objetivo[1] - last[length - it - 1][1]]
     new_values_O = [last[length][0] - last[length - it - 1][0] , 
                     last[length][1] - last[length - it - 1][1] ]
-    alpha1 = np.atan2(new_values_O[1], new_values_O[0])
-    alpha2 = np.atan2(new_values_objective[1], new_values_objective[0])
+    alpha1 = atan2(new_values_O[1], new_values_O[0])
+    alpha2 = atan2(new_values_objective[1], new_values_objective[0])
     new_alpha = alpha2 - alpha1
     return new_alpha
 
@@ -88,20 +88,66 @@ def rad_to_grade(radians):
     grade = radians * (180 / np.pi)
     return grade
 
+def grade_to_rad(grades):
+    radians = grades * (np.pi / 180)
+    return radians
+
 # ******************************************************************************
 # Cálculo de la cinemática inversa de forma iterativa por el método CCD
 
+grade90 = grade_to_rad(90)
+grade25 = grade_to_rad(25)
+grade65 = grade_to_rad(65)
+grade140 = grade_to_rad(140)
+
 # valores articulares arbitrarios para la cinemática directa inicial
-th=[0., 0., 0., 0.]
-a =[5., 5., 5., 5.]
-grade90 = np.pi / 2 
-grade45 = np.pi / 4
-grade30 = np.pi / 6
-limits = [[-grade45, grade45],
-          [1, 4],
-          [0, 2*grade30],
-          [2, 3]]
-spot_type = [False, True, False, True] # False = rotational, True = prismatic
+option_th = []
+option_a = []
+option_limits = []
+option_spot_type = []
+
+# coordenadas objetivo: -2.3 7
+option_th.append([grade_to_rad(15), 0., grade_to_rad(25), 0.])
+option_a.append([2., 1., 3., 1.] )
+option_limits.append([[-grade90, grade90],
+          [0, 3],
+          [-grade25, grade65],
+          [-grade90, grade90]])
+option_spot_type.append([False, True, False, False]) # False = rotational, True = prismatic
+
+# coordenadas objetivo: 3 5
+option_th.append([grade_to_rad(10), grade_to_rad(25), 0, 0.])
+option_a.append([2., 3., 1., 1.]) 
+option_limits.append([[-grade90, grade90],
+          [-grade25, grade65],
+          [0, 3],
+          [-grade90, grade90]])
+option_spot_type.append([False, False, True, False])
+
+# coordenadas objetivo: -6 5
+option_th.append([grade_to_rad(5), grade_to_rad(45), grade_to_rad(25), 0.])
+option_a.append([3., 1., 3., 1.]) 
+option_limits.append([[-grade140, grade140],
+          [0, 3],
+          [-grade90, grade90],
+          [0, 5]])
+option_spot_type.append([False, True, False, True])
+
+# configuracion de prueba
+option_th.append([0., 0., 0., 0.]) 
+option_a.append([5., 5., 5., 5.])
+option_limits.append([[-grade90, grade90],
+          [0, 5],
+          [-grade90, grade90],
+          [0, 5]])
+option_spot_type.append([False, True, False, True]) 
+
+# 0 -> primera opción, 3 -> configuracion de prueba
+option_selected = 0
+th= option_th[option_selected]
+a = option_a[option_selected]
+limits = option_limits[option_selected]
+spot_type = option_spot_type[option_selected] 
 L = sum(a) # variable para representación gráfica
 EPSILON = .01
 
