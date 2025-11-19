@@ -84,12 +84,17 @@ def calc_distance(objetivo, last, length, it) -> float:
     result = np.dot(array, distance_r)
     return result
 
+def rad_to_grade(radians):
+    grade = radians * (180 / np.pi)
+    return grade
+
 # ******************************************************************************
 # Cálculo de la cinemática inversa de forma iterativa por el método CCD
 
 # valores articulares arbitrarios para la cinemática directa inicial
 th=[0., 0., 0., 0.]
 a =[5., 5., 5., 5.]
+grade90 = np.pi / 2 
 grade45 = np.pi / 4
 grade30 = np.pi / 6
 limits = [[-grade45, grade45],
@@ -157,6 +162,6 @@ print ("- Umbral de convergencia epsilon: " + str(EPSILON))
 print ("- Distancia al objetivo:          " + str(round(dist,5)))
 print ("- Valores finales de las articulaciones:")
 for i in range(len(th)):
-  print ("  theta" + str(i+1) + " = " + str(round(th[i],3)))
+  print ("  theta" + str(i+1) + " = " + str(round(rad_to_grade(th[i]),3)))
 for i in range(len(th)):
   print ("  L" + str(i+1) + "     = " + str(round(a[i],3)))
