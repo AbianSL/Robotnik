@@ -119,13 +119,12 @@ real = robot()
 real.set_noise(.01,.01,.1)  # Ruido lineal / radial / de sensado
 real.set(*P_INICIAL)
 
-random.seed(0)
 tray_real = [real.pose()]     # Trayectoria seguida
 
 tiempo  = 0.
 espacio = 0.
-#random.seed(0)
-random.seed(time.time())
+random.seed(0)
+#random.seed(time.time())
 tic = time.time()
 
 # Localización inicial
@@ -175,6 +174,13 @@ print(f"Recorrido: {espacio:.3f}m / {tiempo/FPS}s")
 print(f"Distancia real al objetivo final: {distanciaObjetivos[-1]:.3f}m")
 print(f"Suma de distancias a objetivos: {np.sum(distanciaObjetivos):.3f}m")
 print(f"Tiempo real invertido: {toc-tic:.3f}sg")
+
+desviacion = np.sum(np.abs(np.subtract(tray_real, tray_ideal)))
+print(f"Desviacion de las trayectorias: {desviacion:.3f}")
+
+
 if MOSTRAR:
   mostrar(objetivos, tray_ideal, tray_real)  # Representación gráfica
   input() # Pausa para ver la gráfica
+
+print(f"Resumen: {toc-tic:.3f} {desviacion:.3f} {np.sum(distanciaObjetivos):.3f}")
