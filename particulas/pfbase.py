@@ -58,23 +58,34 @@ def mostrar(objetivos,trayectoria,trayectreal,filtro):
   plt.arrow(p[0],p[1],dx,dy,head_width=.075,head_length=.075,color='m')
   # Mostrar y comprobar pulsaciones de teclado:
   plt.show()
-#  if sys.stdin in select.select([sys.stdin],[],[],.01)[0]:
-#    line = sys.stdin.readline()
-# input()
-  plot.close()
+  # if sys.stdin in select.select([sys.stdin],[],[],.01)[0]:
+  #   line = sys.stdin.readline()
+  # input()
+  plt.close()
 
 def genera_filtro(num_particulas, balizas, real, centro=[2,2], radio=3):
   # Inicialización de un filtro de tamaño 'num_particulas', cuyas partículas
   # imitan a la muestra dada y se distribuyen aleatoriamente sobre un área dada.
-  return
+  filter = []
+  for i in range(num_particulas):
+    p = real.copy()
+    angle = random.uniform(0,2*pi)
+    r = radio*sqrt(random.uniform(0,1))
+    p.set(centro[0]+r*cos(angle),
+          centro[1]+r*sin(angle),
+          random.uniform(0,2*pi))
+    filter.append(p)
+  return filter
 
 def dispersion(filtro):
   # Dispersion espacial del filtro de particulas
-  return
+  xs = [p.x for p in filtro]
+  ys = [p.y for p in filtro]
+  return np.std(xs) + np.std(ys) 
 
 def peso_medio(filtro):
   # Peso medio normalizado del filtro de particulas
-  return
+  return sum([p.weight for p in filtro])/len(filtro)
 
 # ******************************************************************************
 
@@ -89,7 +100,7 @@ HOLONOMICO = 0         # Robot holonómico
 GIROPARADO = 0         # Si tiene que tener vel. lineal 0 para girar
 LONGITUD   = .1        # Longitud del robot
 
-N_PARTIC  = 50         # Tamaño del filtro de partículas
+N_PARTIC  = 500         # Tamaño del filtro de partículas
 N_INICIAL = 2000       # Tamaño inicial del filtro
 
 # Definición de trayectorias:
@@ -120,17 +131,17 @@ real.set_noise(.01,.01,.01) # Ruido lineal / radial / de sensado
 real.set(*P_INICIAL)
 
 #inicialización del filtro de partículas y de la trayectoria
-
+balizas = objetivos
+filter = genera_filtro(N_PARTIC, balizas, real)
+pose = hipotesis(filter)
+trayectoria = [pose]
 
 trayectreal = [real.pose()]
-
 
 tiempo  = 0.
 espacio = 0.
 for punto in objetivos:
   while distancia(trayectoria[-1],punto) > EPSILON and len(trayectoria) <= 1000:
-
-    #seleccionar pose
 
     w = angulo_rel(pose,punto)
     if w > W:  w =  W
@@ -144,14 +155,27 @@ for punto in objetivos:
     else:
       real.move_triciclo(w,v,LONGITUD)
  
+    #seleccionar pose
+    for p in filter:
+      if HOLONOMICO:
+        p.move(w, v)
+      else:
+        p.move_triciclo(w, v, LONGITUD)
 
     # Seleccionar hipótesis de localización y actualizar la trayectoria
-    
-
-    trayectreal.append(real.pose())
-    mostrar(objetivos,trayectoria,trayectreal,filtro)
+    measurements = real.sense(balizas)
+    for p in filter:
+      p.measurement_prob(measurements, balizas)
 
     # remuestreo
+    filter = resample(filter, N_PARTIC)
+    
+    pose = hipotesis(filter)
+    trayectoria.append(pose)
+
+    trayectreal.append(real.pose())
+    mostrar(objetivos, trayectoria, trayectreal, filter)
+
 
     espacio += v
     tiempo  += 1
