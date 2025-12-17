@@ -63,79 +63,7 @@ def mostrar(objetivos,ideal,trayectoria):
   plt.pause(0.001)
   plt.show()
 
-
-def localizacion(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar):
- 
-  # P -> Matriz de covarianza inicial
-  # Q -> Ruido de proceso
-  R_std = sqrt(R_var) 
-  P = P + Q
-  
-  x_est = np.array(ideal.pose())
-  z_real = np.array(real.senseDistance(balizas))
-
-  for i, baliza in enumerate(balizas):
-      bx, by = baliza
-      
-      dx = x_est[0] - bx
-      dy = x_est[1] - by
-      dist_pred = sqrt(dx**2 + dy**2)
-      
-      if dist_pred == 0: continue
-      
-      z = z_real[i]
-      y = z - dist_pred
-      
-      # Jacobiana H
-      H = np.array([dx/dist_pred, dy/dist_pred, 0.0])
-     
-      # @ -> Multiplicación de matrices
-      S = H @ P @ H.T + R_var
-      K = P @ H.T * (1.0 / S)
-      
-      x_est = x_est + K * y
-      
-      while x_est[2] >  pi: x_est[2] -= 2*pi
-      while x_est[2] < -pi: x_est[2] += 2*pi
-      
-      I = np.eye(3)
-      # np.outer -> Producto externo de vectores
-      P = (I - np.outer(K, H)) @ P
-
-  ideal.set(x_est[0], x_est[1], x_est[2])
-  
-  if mostrar:
-    plt.figure('Localizacion')
-    plt.clf()
-    # Dibujar balizas
-    balT = np.array(balizas).T.tolist()
-    plt.plot(balT[0], balT[1], 'or', ms=10)
-    # Dibujar robot Real e Ideal
-    plt.plot(real.x, real.y, 'D', c='#00ff00', ms=10, mew=2, label='Real')
-    plt.plot(ideal.x, ideal.y, 'D', c='#ff00ff', ms=10, mew=2, label='EKF')
-    
-    # Dibujar elipse de incertidumbre (Covarianza P)
-    # Tomamos los eigenvalores de la submatriz 2x2 (x,y)
-    cov_xy = P[0:2, 0:2]
-    vals, vecs = np.linalg.eigh(cov_xy)
-    angle = degrees(atan2(vecs[1, 0], vecs[0, 0]))
-    width, height = 2 * np.sqrt(vals) # 2 desviaciones estándar (95%)
-    
-    ell = Ellipse(xy=(ideal.x, ideal.y), width=width, height=height, angle=angle, 
-                  edgecolor='blue', fc='None', lw=2, label='Covarianza')
-    plt.gca().add_patch(ell)
-    
-    # Ajustar vista
-    plt.xlim(centro[0]-radio, centro[0]+radio)
-    plt.ylim(centro[1]-radio, centro[1]+radio)
-    plt.legend()
-    plt.pause(0.001)
-    plt.show()
-
 def localizacion_ekf(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar_graficos):
-  # Predicción: P = P + Q (ya aplicado en ejecutar_simulacion antes de llamar)
-  # Nota: P ya viene actualizado con Q desde fuera
-  
   x_est = np.array(ideal.pose())
   z_real = np.array(real.senseDistance(balizas))
 
@@ -195,7 +123,6 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
     ruidos: diccionario {'lin': float, 'ang': float, 'sense': float}
     """
     
-    # Configuración base
     V_LINEAL  = .7
     V_ANGULAR = 140.
     FPS       = 10.
@@ -203,13 +130,11 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
     V = V_LINEAL/FPS
     W = V_ANGULAR*pi/(180*FPS)
     
-    # Inicialización Robots
     ideal = robot()
     ideal.set_noise(0,0,0)
     ideal.set(*pose_inicial)
     
     real = robot()
-    # Configurar ruidos desde el CLI
     real.set_noise(ruidos['lin'], ruidos['ang'], ruidos['sense']) 
     real.set(*pose_inicial)
     
@@ -217,10 +142,9 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
     tray_ideal = [ideal.pose()]
     
     # Inicialización Matrices EKF
-    P = np.eye(3) * 0.1 # Covarianza inicial pequeña
-    # Q: Ruido de proceso (movimiento)
+    # P -> matriz de 
+    P = np.eye(3) * 0.1
     Q = np.diag([ruidos['lin']**2, ruidos['lin']**2, ruidos['ang']**2])
-    # R_var: Varianza del ruido de medida
     R_var = ruidos['sense']**2
 
     tiempo = 0.
@@ -234,7 +158,6 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
         while distancia(tray_ideal[-1], punto) > EPSILON and len(tray_ideal) <= 1000:
             pose = ideal.pose()
             
-            # Control de movimiento
             w = angulo_rel(pose, punto)
             if w > W:  w =  W
             if w < -W: w = -W
@@ -242,14 +165,12 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
             if (v > V): v = V
             if (v < 0): v = 0
             
-            # Movimiento (Holonómico simplificado)
             ideal.move(w, v)
             real.move(w, v)
             
             tray_real.append(real.pose())
             
             # --- EKF: Localización ---
-            # Aplicar ruido de proceso a P antes de la corrección
             P = P + Q
             
             radius = 3
@@ -264,22 +185,23 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
             espacio += v
             tiempo += 1
             
-        # Fin de trayecto a este punto -> Guardar error baliza
         distanciaObjetivos.append(distancia(tray_real[-1], punto))
 
     toc = time.time()
     
-    # Calcular desviación de trayectorias
-    desviacion = np.sum(np.abs(np.subtract(tray_real, tray_ideal)))
+    arr_real = np.array(tray_real)
+    arr_ideal = np.array(tray_ideal)
     
-    # Imprimir resultados finales (como antes)
+    diff_xy = arr_real[:, :2] - arr_ideal[:, :2]
+    errores_distancia = np.linalg.norm(diff_xy, axis=1)
+    desviacion = np.sum(errores_distancia)
+    
     if len(tray_ideal) > 1000:
         print("<!> Trayectoria muy larga ⇒ quizás no alcanzada posición final.")
     
     print(f"Recorrido: {espacio:.3f}m / {tiempo/FPS:.3f}s")
     print(f"Distancia real al objetivo final: {distanciaObjetivos[-1]:.3f}m")
     
-    # Mostrar error por cada baliza
     print("Distancias a cada baliza:")
     for i, err in enumerate(distanciaObjetivos):
         print(f"  Baliza {i+1}: {err:.3f}m")

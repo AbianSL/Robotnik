@@ -1,9 +1,8 @@
 #! /usr/bin/env python3
 
-# cli.py
 import sys
 import os
-import localizacion  # Importamos el módulo modificado
+import localizacion
 
 def imprimir_menu():
     print("\n")
