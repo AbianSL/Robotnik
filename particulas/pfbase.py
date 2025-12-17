@@ -13,7 +13,10 @@ import matplotlib.pyplot as plt
 import sys
 import select
 from datetime import datetime
+<<<<<<< HEAD
 from config import *
+=======
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
 # ******************************************************************************
 # Declaración de funciones
 
@@ -58,6 +61,7 @@ def mostrar(objetivos,trayectoria,trayectreal,filtro):
   dy = sin(p[2])*.05
   plt.arrow(p[0],p[1],dx,dy,head_width=.075,head_length=.075,color='m')
   # Mostrar y comprobar pulsaciones de teclado:
+<<<<<<< HEAD
   # plt.show()
   # if sys.stdin in select.select([sys.stdin],[],[],.01)[0]:
   #   line = sys.stdin.readline()
@@ -67,6 +71,15 @@ def mostrar(objetivos,trayectoria,trayectreal,filtro):
   plt.pause(0.001)
 
 def genera_filtro(num_particulas, balizas, real, centro=CENTER, radio=RADIUS):
+=======
+  plt.show()
+  # if sys.stdin in select.select([sys.stdin],[],[],.01)[0]:
+  #   line = sys.stdin.readline()
+  # input()
+  plt.close()
+
+def genera_filtro(num_particulas, balizas, real, centro=[2,2], radio=3):
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
   # Inicialización de un filtro de tamaño 'num_particulas', cuyas partículas
   # imitan a la muestra dada y se distribuyen aleatoriamente sobre un área dada.
   filter = []
@@ -93,6 +106,22 @@ def peso_medio(filtro):
 # ******************************************************************************
 
 random.seed(0)
+<<<<<<< HEAD
+=======
+
+# Definición del robot:
+P_INICIAL = [0.,4.,0.] # Pose inicial (posición y orientacion)
+V_LINEAL  = .7         # Velocidad lineal    (m/s)
+V_ANGULAR = 140.       # Velocidad angular   (º/s)
+FPS       = 10.        # Resolución temporal (fps)
+HOLONOMICO = 0         # Robot holonómico
+GIROPARADO = 0         # Si tiene que tener vel. lineal 0 para girar
+LONGITUD   = .1        # Longitud del robot
+
+N_PARTIC  = 500         # Tamaño del filtro de partículas
+N_INICIAL = 2000       # Tamaño inicial del filtro
+
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
 # Definición de trayectorias:
 trayectorias = [
     [[0,2],[4,2]],
@@ -112,13 +141,26 @@ if len(sys.argv)<2 or int(sys.argv[1])<0 or int(sys.argv[1])>=len(trayectorias):
 objetivos = trayectorias[int(sys.argv[1])]
 
 # Definición de constantes:
+<<<<<<< HEAD
 real = robot()
 real.set_noise(NOISE[0], NOISE[1], NOISE[2]) # Ruido lineal / radial / de sensado
+=======
+EPSILON = .1                # Umbral de distancia
+V = V_LINEAL/FPS            # Metros por fotograma
+W = V_ANGULAR*pi/(180*FPS)  # Radianes por fotograma
+
+real = robot()
+real.set_noise(.01,.01,.01) # Ruido lineal / radial / de sensado
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
 real.set(*P_INICIAL)
 
 #inicialización del filtro de partículas y de la trayectoria
 balizas = objetivos
+<<<<<<< HEAD
 filter = genera_filtro(N_INICIAL, balizas, real)
+=======
+filter = genera_filtro(N_PARTIC, balizas, real)
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
 pose = hipotesis(filter)
 trayectoria = [pose]
 
@@ -127,7 +169,10 @@ trayectreal = [real.pose()]
 tiempo  = 0.
 espacio = 0.
 for punto in objetivos:
+<<<<<<< HEAD
   giro_acumulado = 0.0
+=======
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
   while distancia(trayectoria[-1],punto) > EPSILON and len(trayectoria) <= 1000:
 
     w = angulo_rel(pose,punto)
@@ -141,6 +186,7 @@ for punto in objetivos:
       real.move(w,v)
     else:
       real.move_triciclo(w,v,LONGITUD)
+<<<<<<< HEAD
 
     giro_acumulado += w
     print(f"Giro acumulado: {giro_acumulado}") 
@@ -148,6 +194,9 @@ for punto in objetivos:
         print("Bucle detectado: ignorando punto objetivo, pasando al siguiente")
         break;
 
+=======
+ 
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
     #seleccionar pose
     for p in filter:
       if HOLONOMICO:
@@ -159,6 +208,7 @@ for punto in objetivos:
     measurements = real.sense(balizas)
     for p in filter:
       p.measurement_prob(measurements, balizas)
+<<<<<<< HEAD
     
     calidad_actual = peso_medio(filter)
     print(f"calidad {calidad_actual}\n\n")
@@ -173,6 +223,11 @@ for punto in objetivos:
     if n_dinamico > N_MAX: n_dinamico = N_MAX
     if n_dinamico < N_MIN: n_dinamico = N_MIN
     filter = resample(filter, n_dinamico)
+=======
+
+    # remuestreo
+    filter = resample(filter, N_PARTIC)
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
     
     pose = hipotesis(filter)
     trayectoria.append(pose)
@@ -180,6 +235,10 @@ for punto in objetivos:
     trayectreal.append(real.pose())
     mostrar(objetivos, trayectoria, trayectreal, filter)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 0afee241f009e91ad49e8f0cbe17d271013ba768
     espacio += v
     tiempo  += 1
 
