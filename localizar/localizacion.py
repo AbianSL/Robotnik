@@ -46,14 +46,20 @@ def mostrar(objetivos,ideal,trayectoria):
   plt.ylim(centro[1]-radio,centro[1]+radio)
   # Representar objetivos y trayectoria
   idealT = np.array(ideal).T.tolist()
-  plt.plot(idealT[0],idealT[1],'-g')
+  plt.plot(idealT[0],idealT[1],'-g', label='Ideal (EKF)')
   plt.plot(trayectoria[0][0],trayectoria[0][1],'or')
+  
+  # Dibujar trayectoria real
+  plt.plot(trayT[0], trayT[1], '-r', alpha=0.5, label='Real')
+  
+  # Dibujar orientación solo del último punto para evitar saturación
   r = radio * .1
-  for p in trayectoria:
-    plt.plot([p[0],p[0]+r*cos(p[2])],[p[1],p[1]+r*sin(p[2])],'-r')
-    #plt.plot(p[0],p[1],'or')
+  p = trayectoria[-1]
+  plt.plot([p[0],p[0]+r*cos(p[2])],[p[1],p[1]+r*sin(p[2])],'-r', linewidth=2)
+  
   objT   = np.array(objetivos).T.tolist()
-  plt.plot(objT[0],objT[1],'-.o')
+  plt.plot(objT[0],objT[1],'-.ob', label='Objetivos')
+  plt.legend()
   plt.pause(0.001)
   plt.show()
 
@@ -125,9 +131,10 @@ def localizacion(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar):
     plt.legend()
     plt.pause(0.001)
     plt.show()
+
 def localizacion_ekf(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar_graficos):
-  R_std = sqrt(R_var) 
-  P = P + Q
+  # Predicción: P = P + Q (ya aplicado en ejecutar_simulacion antes de llamar)
+  # Nota: P ya viene actualizado con Q desde fuera
   
   x_est = np.array(ideal.pose())
   z_real = np.array(real.senseDistance(balizas))
@@ -141,7 +148,7 @@ def localizacion_ekf(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar_g
       if dist_pred == 0: continue
       
       z = z_real[i]
-      y = z - dist_pred
+      y = z - dist_pred  # Innovación
       
       H = np.array([dx/dist_pred, dy/dist_pred, 0.0])
       S = H @ P @ H.T + R_var
@@ -216,14 +223,15 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
     # R_var: Varianza del ruido de medida
     R_var = ruidos['sense']**2
 
-    tiempo_frames = 0
-    distanciaObjetivos = [] # Error baliza
-    error_acumulado_total = 0.0 # Error acumulado (distancia + angulo)
+    tiempo = 0.
+    espacio = 0.
+    distanciaObjetivos = []
     
+    random.seed(0)
     tic = time.time()
     
     for punto in objetivos:
-        while distancia(tray_ideal[-1], punto) > EPSILON and tiempo_frames <= 2000:
+        while distancia(tray_ideal[-1], punto) > EPSILON and len(tray_ideal) <= 1000:
             pose = ideal.pose()
             
             # Control de movimiento
@@ -241,50 +249,51 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
             tray_real.append(real.pose())
             
             # --- EKF: Localización ---
-            # Llamamos a la función corregida y actualizamos P
+            # Aplicar ruido de proceso a P antes de la corrección
+            P = P + Q
+            
             radius = 3
             center = ideal.pose()[:2]
             P = localizacion_ekf(objetivos, real, ideal, P, Q, R_var, center, radius, mostrar_gui)
             
             tray_ideal.append(ideal.pose())
             
-            # --- Métricas Iteración ---
-            # Error posición (Euclídeo)
-            err_pos = distancia(real.pose(), ideal.pose())
-            # Error ángulo (Diferencia absoluta normalizada)
-            diff_ang = abs(real.orientation - ideal.orientation)
-            while diff_ang > pi: diff_ang -= 2*pi
-            err_ang = abs(diff_ang)
-            
-            # Sumamos ambos errores
-            error_acumulado_total += (err_pos + err_ang)
-            
             if mostrar_gui:
                 mostrar(objetivos, tray_ideal, tray_real)
             
-            tiempo_frames += 1
+            espacio += v
+            tiempo += 1
             
-        # Fin de trayecto a este punto -> Guardar error baliza (distancia real al objetivo)
-        dist_real_obj = distancia(real.pose(), punto)
-        distanciaObjetivos.append(dist_real_obj)
+        # Fin de trayecto a este punto -> Guardar error baliza
+        distanciaObjetivos.append(distancia(tray_real[-1], punto))
 
     toc = time.time()
-    tiempo_total = toc - tic
     
-    # Imprimir resultados finales
-    print("\n" + "="*40)
-    print("RESULTADOS DE LA SIMULACIÓN")
-    print("="*40)
-    print(f"Tiempo de ejecución: {tiempo_total:.4f} seg")
-    print(f"Error acumulado total: {error_acumulado_total:.4f} (suma dist + angulo por iteración)")
-    print("Error Baliza (Distancia real al llegar):")
+    # Calcular desviación de trayectorias
+    desviacion = np.sum(np.abs(np.subtract(tray_real, tray_ideal)))
+    
+    # Imprimir resultados finales (como antes)
+    if len(tray_ideal) > 1000:
+        print("<!> Trayectoria muy larga ⇒ quizás no alcanzada posición final.")
+    
+    print(f"Recorrido: {espacio:.3f}m / {tiempo/FPS:.3f}s")
+    print(f"Distancia real al objetivo final: {distanciaObjetivos[-1]:.3f}m")
+    
+    # Mostrar error por cada baliza
+    print("Distancias a cada baliza:")
     for i, err in enumerate(distanciaObjetivos):
-        print(f"  - Baliza {i+1}: {err:.4f} m")
-    print("="*40)
+        print(f"  Baliza {i+1}: {err:.3f}m")
+    
+    print(f"Suma de distancias a objetivos: {np.sum(distanciaObjetivos):.3f}m")
+    print(f"Tiempo real invertido: {toc-tic:.3f}sg")
+    print(f"Desviacion de las trayectorias: {desviacion:.3f}")
     
     if mostrar_gui:
-        input("\nPresiona Enter para cerrar gráficas y volver al menú...")
+        mostrar(objetivos, tray_ideal, tray_real)
+        input("Presiona Enter para continuar...")
         plt.close('all')
+    
+    print(f"Resumen: {toc-tic:.3f} {desviacion:.3f} {np.sum(distanciaObjetivos):.3f}")
 
 # Bloque main original por si se ejecuta el archivo directamente
 if __name__ == "__main__":
