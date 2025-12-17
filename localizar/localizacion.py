@@ -9,6 +9,7 @@
 
 import sys
 from math import *
+from matplotlib.patches import Ellipse
 from robot import robot
 import random
 import numpy as np
@@ -53,134 +54,242 @@ def mostrar(objetivos,ideal,trayectoria):
     #plt.plot(p[0],p[1],'or')
   objT   = np.array(objetivos).T.tolist()
   plt.plot(objT[0],objT[1],'-.o')
+  plt.pause(0.001)
   plt.show()
 
-def localizacion(balizas, real, ideal, centro, radio, mostrar=False):
-  # Buscar la localización más probable del robot, a partir de su sistema
-  # sensorial, dentro de una región cuadrada de centro "centro" y lado "2*radio".
 
+def localizacion(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar):
+ 
+  # P -> Matriz de covarianza inicial
+  # Q -> Ruido de proceso
+  R_std = sqrt(R_var) 
+  P = P + Q
+  
+  x_est = np.array(ideal.pose())
+  z_real = np.array(real.senseDistance(balizas))
 
+  for i, baliza in enumerate(balizas):
+      bx, by = baliza
+      
+      dx = x_est[0] - bx
+      dy = x_est[1] - by
+      dist_pred = sqrt(dx**2 + dy**2)
+      
+      if dist_pred == 0: continue
+      
+      z = z_real[i]
+      y = z - dist_pred
+      
+      # Jacobiana H
+      H = np.array([dx/dist_pred, dy/dist_pred, 0.0])
+     
+      # @ -> Multiplicación de matrices
+      S = H @ P @ H.T + R_var
+      K = P @ H.T * (1.0 / S)
+      
+      x_est = x_est + K * y
+      
+      while x_est[2] >  pi: x_est[2] -= 2*pi
+      while x_est[2] < -pi: x_est[2] += 2*pi
+      
+      I = np.eye(3)
+      # np.outer -> Producto externo de vectores
+      P = (I - np.outer(K, H)) @ P
 
-
-
+  ideal.set(x_est[0], x_est[1], x_est[2])
+  
   if mostrar:
     plt.figure('Localizacion')
     plt.clf()
-    plt.ion() # modo interactivo
-    plt.xlim(centro[0]-radio,centro[0]+radio)
-    plt.ylim(centro[1]-radio,centro[1]+radio)
-    imagen.reverse()
-    plt.imshow(imagen,extent=[centro[0]-radio,centro[0]+radio,\
-                              centro[1]-radio,centro[1]+radio])
-    balT = np.array(balizas).T.tolist();
-    plt.plot(balT[0],balT[1],'or',ms=10)
-    plt.plot(ideal.x,ideal.y,'D',c='#ff00ff',ms=10,mew=2)
-    plt.plot(real.x, real.y, 'D',c='#00ff00',ms=10,mew=2)
+    # Dibujar balizas
+    balT = np.array(balizas).T.tolist()
+    plt.plot(balT[0], balT[1], 'or', ms=10)
+    # Dibujar robot Real e Ideal
+    plt.plot(real.x, real.y, 'D', c='#00ff00', ms=10, mew=2, label='Real')
+    plt.plot(ideal.x, ideal.y, 'D', c='#ff00ff', ms=10, mew=2, label='EKF')
+    
+    # Dibujar elipse de incertidumbre (Covarianza P)
+    # Tomamos los eigenvalores de la submatriz 2x2 (x,y)
+    cov_xy = P[0:2, 0:2]
+    vals, vecs = np.linalg.eigh(cov_xy)
+    angle = degrees(atan2(vecs[1, 0], vecs[0, 0]))
+    width, height = 2 * np.sqrt(vals) # 2 desviaciones estándar (95%)
+    
+    ell = Ellipse(xy=(ideal.x, ideal.y), width=width, height=height, angle=angle, 
+                  edgecolor='blue', fc='None', lw=2, label='Covarianza')
+    plt.gca().add_patch(ell)
+    
+    # Ajustar vista
+    plt.xlim(centro[0]-radio, centro[0]+radio)
+    plt.ylim(centro[1]-radio, centro[1]+radio)
+    plt.legend()
+    plt.pause(0.001)
     plt.show()
+def localizacion_ekf(balizas, real, ideal, P, Q, R_var, centro, radio, mostrar_graficos):
+  R_std = sqrt(R_var) 
+  P = P + Q
+  
+  x_est = np.array(ideal.pose())
+  z_real = np.array(real.senseDistance(balizas))
 
-# ******************************************************************************
+  for i, baliza in enumerate(balizas):
+      bx, by = baliza
+      dx = x_est[0] - bx
+      dy = x_est[1] - by
+      dist_pred = sqrt(dx**2 + dy**2)
+      
+      if dist_pred == 0: continue
+      
+      z = z_real[i]
+      y = z - dist_pred
+      
+      H = np.array([dx/dist_pred, dy/dist_pred, 0.0])
+      S = H @ P @ H.T + R_var
+      K = P @ H.T * (1.0 / S)
+      x_est = x_est + K * y
+      
+      while x_est[2] >  pi: x_est[2] -= 2*pi
+      while x_est[2] < -pi: x_est[2] += 2*pi
+      
+      I = np.eye(3)
+      P = (I - np.outer(K, H)) @ P
 
-# Definición del robot:
-P_INICIAL = [0.,4.,0.] # Pose inicial (posición y orientacion)
-P_INICIAL_IDEAL = [2, 2, 0]  # Pose inicial del ideal
-V_LINEAL  = .7         # Velocidad lineal    (m/s)
-V_ANGULAR = 140.       # Velocidad angular   (º/s)
-FPS       = 10.        # Resolución temporal (fps)
-MOSTRAR   = True       # Si se quiere gráficas de localización y trayectorias
-
-HOLONOMICO = 1
-GIROPARADO = 0
-LONGITUD   = .2
-
-# Definición de trayectorias:
-trayectorias = [
-    [[1,3]],
-    [[0,2],[4,2]],
-    [[2,4],[4,0],[0,0]],
-    [[2,4],[2,0],[0,2],[4,2]],
-    [[2+2*sin(.8*pi*i),2+2*cos(.8*pi*i)] for i in range(5)]
-    ]
-
-# Definición de los puntos objetivo:
-if len(sys.argv)<2 or int(sys.argv[1])<0 or int(sys.argv[1])>=len(trayectorias):
-  sys.exit(f"{sys.argv[0]} <indice entre 0 y {len(trayectorias)-1}>")
-objetivos = trayectorias[int(sys.argv[1])]
-
-# Definición de constantes:
-EPSILON = .1                # Umbral de distancia
-V = V_LINEAL/FPS            # Metros por fotograma
-W = V_ANGULAR*pi/(180*FPS)  # Radianes por fotograma
-
-ideal = robot()
-ideal.set_noise(0,0,0)   # Ruido lineal / radial / de sensado
-ideal.set(*P_INICIAL_IDEAL)     # operador 'splat'
-
-real = robot()
-real.set_noise(.01,.01,.1)  # Ruido lineal / radial / de sensado
-real.set(*P_INICIAL)
-
-tray_real = [real.pose()]     # Trayectoria seguida
-
-tiempo  = 0.
-espacio = 0.
-random.seed(0)
-#random.seed(time.time())
-tic = time.time()
-
-# Localización inicial
-
-tray_ideal = [ideal.pose()]  # Trayectoria percibida
-
-distanciaObjetivos = []
-for punto in objetivos:
-  while distancia(tray_ideal[-1],punto) > EPSILON and len(tray_ideal) <= 1000:
-    pose = ideal.pose()
-
-    w = angulo_rel(pose,punto)
-    if w > W:  w =  W
-    if w < -W: w = -W
-    v = distancia(pose,punto)
-    if (v > V): v = V
-    if (v < 0): v = 0
-
-    if HOLONOMICO:
-      if GIROPARADO and abs(w) > .01:
-        v = 0
-      ideal.move(w,v)
-      real.move(w,v)
-    else:
-      ideal.move_triciclo(w,v,LONGITUD)
-      real.move_triciclo(w,v,LONGITUD)
-    tray_real.append(real.pose())
-
-    # Decidir nueva localización ⇒ nuevo ideal
-
-    tray_ideal.append(ideal.pose())
-
-    if MOSTRAR:
-      mostrar(objetivos, tray_ideal, tray_real)  # Representación gráfica
-      input() # Pausa para ver la gráfica
-
-    espacio += v
-    tiempo  += 1
-  # Antes de pasar a un nuevo punto apuntamos distancia a este objetivo
-  distanciaObjetivos.append(distancia(tray_real[-1], punto))
+  ideal.set(x_est[0], x_est[1], x_est[2])
+  
+  if mostrar_graficos:
+    plt.figure('Localizacion')
+    plt.clf()
+    balT = np.array(balizas).T.tolist()
+    plt.plot(balT[0], balT[1], 'or', ms=10)
+    plt.plot(real.x, real.y, 'D', c='#00ff00', ms=10, mew=2, label='Real')
+    plt.plot(ideal.x, ideal.y, 'D', c='#ff00ff', ms=10, mew=2, label='EKF')
+    
+    cov_xy = P[0:2, 0:2]
+    vals, vecs = np.linalg.eigh(cov_xy)
+    angle = degrees(atan2(vecs[1, 0], vecs[0, 0]))
+    width, height = 2 * np.sqrt(vals)
+    
+    ell = Ellipse(xy=(ideal.x, ideal.y), width=width, height=height, angle=angle, 
+                  edgecolor='blue', fc='None', lw=2, label='Covarianza')
+    plt.gca().add_patch(ell)
+    
+    plt.xlim(centro[0]-radio, centro[0]+radio)
+    plt.ylim(centro[1]-radio, centro[1]+radio)
+    plt.legend()
+    plt.pause(0.001)
+  
+  return P
 
 
-toc = time.time()
-if len(tray_ideal) > 1000:
-  print ("<!> Trayectoria muy larga ⇒ quizás no alcanzada posición final.")
-print(f"Recorrido: {espacio:.3f}m / {tiempo/FPS}s")
-print(f"Distancia real al objetivo final: {distanciaObjetivos[-1]:.3f}m")
-print(f"Suma de distancias a objetivos: {np.sum(distanciaObjetivos):.3f}m")
-print(f"Tiempo real invertido: {toc-tic:.3f}sg")
+def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
+    """
+    objetivos: lista de [x, y]
+    pose_inicial: [x, y, theta]
+    ruidos: diccionario {'lin': float, 'ang': float, 'sense': float}
+    """
+    
+    # Configuración base
+    V_LINEAL  = .7
+    V_ANGULAR = 140.
+    FPS       = 10.
+    EPSILON   = .1
+    V = V_LINEAL/FPS
+    W = V_ANGULAR*pi/(180*FPS)
+    
+    # Inicialización Robots
+    ideal = robot()
+    ideal.set_noise(0,0,0)
+    ideal.set(*pose_inicial)
+    
+    real = robot()
+    # Configurar ruidos desde el CLI
+    real.set_noise(ruidos['lin'], ruidos['ang'], ruidos['sense']) 
+    real.set(*pose_inicial)
+    
+    tray_real = [real.pose()]
+    tray_ideal = [ideal.pose()]
+    
+    # Inicialización Matrices EKF
+    P = np.eye(3) * 0.1 # Covarianza inicial pequeña
+    # Q: Ruido de proceso (movimiento)
+    Q = np.diag([ruidos['lin']**2, ruidos['lin']**2, ruidos['ang']**2])
+    # R_var: Varianza del ruido de medida
+    R_var = ruidos['sense']**2
 
-desviacion = np.sum(np.abs(np.subtract(tray_real, tray_ideal)))
-print(f"Desviacion de las trayectorias: {desviacion:.3f}")
+    tiempo_frames = 0
+    distanciaObjetivos = [] # Error baliza
+    error_acumulado_total = 0.0 # Error acumulado (distancia + angulo)
+    
+    tic = time.time()
+    
+    for punto in objetivos:
+        while distancia(tray_ideal[-1], punto) > EPSILON and tiempo_frames <= 2000:
+            pose = ideal.pose()
+            
+            # Control de movimiento
+            w = angulo_rel(pose, punto)
+            if w > W:  w =  W
+            if w < -W: w = -W
+            v = distancia(pose, punto)
+            if (v > V): v = V
+            if (v < 0): v = 0
+            
+            # Movimiento (Holonómico simplificado)
+            ideal.move(w, v)
+            real.move(w, v)
+            
+            tray_real.append(real.pose())
+            
+            # --- EKF: Localización ---
+            # Llamamos a la función corregida y actualizamos P
+            radius = 3
+            center = ideal.pose()[:2]
+            P = localizacion_ekf(objetivos, real, ideal, P, Q, R_var, center, radius, mostrar_gui)
+            
+            tray_ideal.append(ideal.pose())
+            
+            # --- Métricas Iteración ---
+            # Error posición (Euclídeo)
+            err_pos = distancia(real.pose(), ideal.pose())
+            # Error ángulo (Diferencia absoluta normalizada)
+            diff_ang = abs(real.orientation - ideal.orientation)
+            while diff_ang > pi: diff_ang -= 2*pi
+            err_ang = abs(diff_ang)
+            
+            # Sumamos ambos errores
+            error_acumulado_total += (err_pos + err_ang)
+            
+            if mostrar_gui:
+                mostrar(objetivos, tray_ideal, tray_real)
+            
+            tiempo_frames += 1
+            
+        # Fin de trayecto a este punto -> Guardar error baliza (distancia real al objetivo)
+        dist_real_obj = distancia(real.pose(), punto)
+        distanciaObjetivos.append(dist_real_obj)
 
+    toc = time.time()
+    tiempo_total = toc - tic
+    
+    # Imprimir resultados finales
+    print("\n" + "="*40)
+    print("RESULTADOS DE LA SIMULACIÓN")
+    print("="*40)
+    print(f"Tiempo de ejecución: {tiempo_total:.4f} seg")
+    print(f"Error acumulado total: {error_acumulado_total:.4f} (suma dist + angulo por iteración)")
+    print("Error Baliza (Distancia real al llegar):")
+    for i, err in enumerate(distanciaObjetivos):
+        print(f"  - Baliza {i+1}: {err:.4f} m")
+    print("="*40)
+    
+    if mostrar_gui:
+        input("\nPresiona Enter para cerrar gráficas y volver al menú...")
+        plt.close('all')
 
-if MOSTRAR:
-  mostrar(objetivos, tray_ideal, tray_real)  # Representación gráfica
-  input() # Pausa para ver la gráfica
-
-print(f"Resumen: {toc-tic:.3f} {desviacion:.3f} {np.sum(distanciaObjetivos):.3f}")
+# Bloque main original por si se ejecuta el archivo directamente
+if __name__ == "__main__":
+    # Valores por defecto para prueba rápida
+    objs = [[1,3], [2,2], [0,0]]
+    pose = [0, 0, 0]
+    noise = {'lin': 0.1, 'ang': 0.1, 'sense': 0.1}
+    ejecutar_simulacion(objs, pose, noise, mostrar_gui=True)
