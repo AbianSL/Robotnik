@@ -297,8 +297,33 @@ def ejecutar_simulacion(objetivos, pose_inicial, ruidos, mostrar_gui=True):
 
 # Bloque main original por si se ejecuta el archivo directamente
 if __name__ == "__main__":
-    # Valores por defecto para prueba rápida
-    objs = [[1,3], [2,2], [0,0]]
-    pose = [0, 0, 0]
-    noise = {'lin': 0.1, 'ang': 0.1, 'sense': 0.1}
-    ejecutar_simulacion(objs, pose, noise, mostrar_gui=True)
+    # Definición de trayectorias predefinidas:
+    trayectorias = [
+        [[1,3]],
+        [[0,2],[4,2]],
+        [[2,4],[4,0],[0,0]],
+        [[2,4],[2,0],[0,2],[4,2]],
+        [[2+2*sin(.8*pi*i),2+2*cos(.8*pi*i)] for i in range(5)]
+    ]
+    
+    # Poses iniciales
+    P_INICIAL = [0., 4., 0.]  # Pose inicial del robot real
+    
+    # Verificar argumentos
+    if len(sys.argv) < 2 or int(sys.argv[1]) < 0 or int(sys.argv[1]) >= len(trayectorias):
+        sys.exit(f"Uso: {sys.argv[0]} <indice entre 0 y {len(trayectorias)-1}>")
+    
+    # Seleccionar trayectoria
+    objetivos = trayectorias[int(sys.argv[1])]
+    
+    # Configuración de ruidos (valores originales)
+    ruidos = {'lin': 0.01, 'ang': 0.01, 'sense': 0.1}
+    
+    # Ejecutar simulación
+    print(f"\n=== Ejecutando trayectoria {sys.argv[1]} ===")
+    print(f"Objetivos: {objetivos}")
+    print(f"Pose inicial: {P_INICIAL}")
+    print(f"Ruidos: {ruidos}\n")
+    
+    ejecutar_simulacion(objetivos, P_INICIAL, ruidos, mostrar_gui=True)
+
